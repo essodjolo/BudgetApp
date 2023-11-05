@@ -18,7 +18,12 @@ class Category:
         """
         output = self.name.center(30, '*')
         for record in self.ledger:
-            line = str(record["description"])[:23] + str(record["amount"]).rjust(7)
+            description_shortened = str(record["description"])[:23]
+            # We need to compute this as it's not always 7. Sometimes the length might not be 23.
+            available_space = 30 - len(description_shortened)
+            formatted_amount = str("{:.2f}".format(record["amount"]))
+            formatted_amount = formatted_amount.rjust(available_space)
+            line = description_shortened + formatted_amount
             output += "\n" + line
         output += "\n" + "Total: " + str(self.get_balance())
         return output
@@ -78,6 +83,9 @@ class Category:
             # Withdraw from the source category and deposit on the destination category
             self.withdraw(amount, "Transfer to " + destination_category.name)
             destination_category.deposit(amount, "Transfer from " + self.name)
+            return True
+        else:
+            return False
 
     def check_funds(self,
                     amount: float) -> bool:
@@ -125,6 +133,73 @@ def create_spend_chart(categories: list[Category]) -> str:
         percentage = (category.get_balance() / total_spend) * 100
         percentages[category.name] = round(percentage/10) * 10  # rounded down to the nearest 10
 
-    # Drawing the spend chart
+    # Sort the dictionary
+    percentages = dict(
+        sorted(percentages.items(),
+               key=lambda item: item[1],
+               reverse=True
+               )
+    )
 
-    return "test"
+    # Drawing the spend chart
+    title_line = "Percentage spent by category"
+    column_1: list[str] = ["100", " 90", " 80", " 70", " 60", " 50", " 40", " 30", " 20", " 10", "  0"]
+    column_2: list[str] = ["|", "|", "|", "|", "|", "|", "|", "|", "|", "|", "|"]
+    column_seperator: list[str] = [" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", "-"]
+
+    categories_columns: list = [column_1, column_2, column_seperator]
+    # We'll use the same loop to determine the category having the longest name
+    # that'll be useful when building the chart.
+    max_category_name_length = 0
+
+    for category, percentage in percentages.items():
+        """Logic for determining the category having the longest name"""
+        max_category_name_length = max(max_category_name_length, len(category))
+
+        """Logic for building the columns"""
+
+        # declare a column to hold information on the category's percentage
+        column: list[str] = []
+
+        # drawing the "o" vertical line for the category percentage
+        for value in column_1:
+            if int(value) > percentage:
+                column.append(" ")
+            else:
+                column.append("o")
+
+        # Adding the underlining dash (-)
+        column.append("-")
+
+        # Adding the category name vertically
+        for letter in category:
+            column.append(letter)
+
+        # add the resulting column to the final output
+        categories_columns.append(column)
+
+        # Add two column separators after each category's percentage column
+        categories_columns.append(column_seperator)
+        categories_columns.append(column_seperator)
+
+    # Put the chart together
+    chart: str = ""
+    # The height of the chart depends on the category having the longest name.
+    for x in range(max_category_name_length + len(column_1) + 1):
+        # Add new line before each line.
+        chart += "\n"
+        # Building lines from columns
+        y = 0
+        for column in categories_columns:
+            if len(column) > x:
+                chart += column[x]
+            else:
+                if y == 0:
+                    chart += "   "  # Triple space for first column (if y == 0:)
+                else:
+                    chart += " "
+            y += 1
+
+    output: str = title_line + chart  # No need to separated wit "\n" as the chart already starts with a new line
+
+    return output
